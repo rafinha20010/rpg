@@ -52,7 +52,7 @@ export const RAW_MAP: TileType[][] = [
   [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
 ];
 
-export const BLOCKED = new Set([T.WALL, T.WATER]);
+export const BLOCKED = new Set<TileType>([T.WALL, T.WATER]);
 
 export function isWalkable(tx: number, ty: number): boolean {
   if (tx < 0 || ty < 0 || tx >= COLS || ty >= ROWS) return false;
