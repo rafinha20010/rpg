@@ -6,12 +6,12 @@ import CombatPanel from '@/components/CombatPanel';
 import { useGame } from '@/hooks/useGame';
 
 export default function GamePage() {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const canvasRef    = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const { pickClass, doSkill, doFleeFn, dpadPress, dpadRelease, canvasClick, getState } = useGame(canvasRef);
 
   const [started, setStarted] = useState(false);
-  const [tick, setTick] = useState(0);
+  const [tick, setTick]       = useState(0);
   const forceRender = useCallback(() => setTick(n => n + 1), []);
 
   // Re-render HUD/Combat at ~15fps
@@ -25,7 +25,7 @@ export default function GamePage() {
   useEffect(() => {
     if (!started) return;
     const resize = () => {
-      const canvas = canvasRef.current;
+      const canvas    = canvasRef.current;
       const container = containerRef.current;
       if (!canvas || !container) return;
       canvas.width  = container.clientWidth;
@@ -40,7 +40,7 @@ export default function GamePage() {
     pickClass(cls);
     setStarted(true);
     setTimeout(() => {
-      const canvas = canvasRef.current;
+      const canvas    = canvasRef.current;
       const container = containerRef.current;
       if (canvas && container) {
         canvas.width  = container.clientWidth;
@@ -56,62 +56,77 @@ export default function GamePage() {
     canvasClick(e.clientX - rect.left, e.clientY - rect.top, canvas.width, canvas.height);
   }, [canvasClick]);
 
-  if (!started) {
-    return <ClassSelect onPick={handlePickClass} />;
-  }
+  if (!started) return <ClassSelect onPick={handlePickClass} />;
 
-  const state = getState();
+  const state   = getState();
   const isMobile = typeof window !== 'undefined' && 'ontouchstart' in window;
+  const PANEL_W  = 220; // width of combat panel
 
   return (
-    <div
-      style={{
-        width: '100vw', height: '100vh',
-        background: '#0a0a0f',
-        position: 'relative',
-        overflow: 'hidden',
-        display: 'flex', flexDirection: 'column',
-      }}
-    >
+    <div style={{
+      width: '100vw', height: '100vh',
+      background: '#0a0a0f',
+      position: 'relative',
+      overflow: 'hidden',
+    }}>
+      {/* ── HUD (topo, pointer-events: none) ── */}
       <HUD state={state} key={tick} />
 
+      {/* ── Canvas container — fica À ESQUERDA do painel durante batalha ── */}
       <div
         ref={containerRef}
         style={{
-          position: 'absolute', inset: 0,
-          // leave room for HUD at top
-          top: 48,
-          right: state.inBattle ? 220 : 0,
+          position: 'absolute',
+          top:    48,
+          left:   0,
+          right:  state.inBattle ? PANEL_W : 0,
+          bottom: 0,
+          zIndex: 1,
         }}
       >
         <canvas
           ref={canvasRef}
           onClick={handleCanvasClick}
-          style={{ display: 'block', imageRendering: 'pixelated', cursor: 'crosshair' }}
+          style={{
+            display: 'block',
+            width:  '100%',
+            height: '100%',
+            imageRendering: 'pixelated',
+            cursor: 'crosshair',
+          }}
         />
       </div>
 
-      <CombatPanel
-        state={state}
-        onSkill={doSkill}
-        onFlee={doFleeFn}
-        key={'cp-' + tick}
-      />
+      {/* ── Combat panel — z-index alto, pointer-events ativos ── */}
+      <div style={{
+        position: 'absolute',
+        top:    0,
+        right:  0,
+        bottom: 0,
+        width:  PANEL_W,
+        zIndex: 20,           // acima do canvas
+        pointerEvents: state.inBattle ? 'auto' : 'none',
+        visibility: state.inBattle ? 'visible' : 'hidden',
+      }}>
+        <CombatPanel
+          state={state}
+          onSkill={doSkill}
+          onFlee={doFleeFn}
+          key={'cp-' + tick}
+        />
+      </div>
 
-      {/* D-pad for mobile */}
+      {/* ── D-pad mobile ── */}
       {isMobile && (
         <div style={{
-          position: 'absolute', bottom: 20, left: 20, zIndex: 15,
+          position: 'absolute', bottom: 20, left: 20,
+          zIndex: 30,
           display: 'grid',
           gridTemplateColumns: 'repeat(3, 48px)',
-          gridTemplateRows: 'repeat(3, 48px)',
+          gridTemplateRows:    'repeat(3, 48px)',
           gap: 3,
         }}>
-          {[
-            [null,    'up',    null],
-            ['left',  null,    'right'],
-            [null,    'down',  null],
-          ].map((row, ri) =>
+          {([ ['', 'up', ''], ['left', '', 'right'], ['', 'down', ''] ] as string[][]).map((row, ri) =>
             row.map((dir, ci) =>
               dir ? (
                 <button
@@ -123,7 +138,7 @@ export default function GamePage() {
                     border: '1px solid rgba(255,255,255,0.14)',
                     borderRadius: 8, color: '#888', fontSize: '1.1rem',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    cursor: 'pointer', userSelect: 'none',
+                    cursor: 'pointer', userSelect: 'none', touchAction: 'none',
                   }}
                 >
                   {dir === 'up' ? '▲' : dir === 'down' ? '▼' : dir === 'left' ? '◀' : '▶'}
@@ -136,13 +151,14 @@ export default function GamePage() {
         </div>
       )}
 
-      {/* Controls hint */}
+      {/* ── Dica de controles ── */}
       {!state.inBattle && (
         <div style={{
-          position: 'absolute', bottom: 10, right: state.inBattle ? 228 : 10,
+          position: 'absolute', bottom: 10, right: 10,
           color: '#252530', fontSize: '0.62rem', letterSpacing: 1,
           lineHeight: 1.8, fontFamily: "'Courier New', monospace",
           pointerEvents: 'none',
+          zIndex: 5,
         }}>
           WASD / ↑↓←→ mover<br />
           ESPAÇO / 1-4 habilidades<br />
