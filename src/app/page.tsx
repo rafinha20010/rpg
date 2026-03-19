@@ -1,66 +1,154 @@
-import Image from "next/image";
-import styles from "./page.module.css";
+'use client';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import ClassSelect from '@/components/ClassSelect';
+import HUD from '@/components/HUD';
+import CombatPanel from '@/components/CombatPanel';
+import { useGame } from '@/hooks/useGame';
 
-export default function Home() {
+export default function GamePage() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const { pickClass, doSkill, doFleeFn, dpadPress, dpadRelease, canvasClick, getState } = useGame(canvasRef);
+
+  const [started, setStarted] = useState(false);
+  const [tick, setTick] = useState(0);
+  const forceRender = useCallback(() => setTick(n => n + 1), []);
+
+  // Re-render HUD/Combat at ~15fps
+  useEffect(() => {
+    if (!started) return;
+    const id = setInterval(forceRender, 66);
+    return () => clearInterval(id);
+  }, [started, forceRender]);
+
+  // Resize canvas
+  useEffect(() => {
+    if (!started) return;
+    const resize = () => {
+      const canvas = canvasRef.current;
+      const container = containerRef.current;
+      if (!canvas || !container) return;
+      canvas.width  = container.clientWidth;
+      canvas.height = container.clientHeight;
+    };
+    resize();
+    window.addEventListener('resize', resize);
+    return () => window.removeEventListener('resize', resize);
+  }, [started]);
+
+  const handlePickClass = useCallback((cls: string) => {
+    pickClass(cls);
+    setStarted(true);
+    setTimeout(() => {
+      const canvas = canvasRef.current;
+      const container = containerRef.current;
+      if (canvas && container) {
+        canvas.width  = container.clientWidth;
+        canvas.height = container.clientHeight;
+      }
+    }, 0);
+  }, [pickClass]);
+
+  const handleCanvasClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    canvasClick(e.clientX - rect.left, e.clientY - rect.top, canvas.width, canvas.height);
+  }, [canvasClick]);
+
+  if (!started) {
+    return <ClassSelect onPick={handlePickClass} />;
+  }
+
+  const state = getState();
+  const isMobile = typeof window !== 'undefined' && 'ontouchstart' in window;
+
   return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <div
+      style={{
+        width: '100vw', height: '100vh',
+        background: '#0a0a0f',
+        position: 'relative',
+        overflow: 'hidden',
+        display: 'flex', flexDirection: 'column',
+      }}
+    >
+      <HUD state={state} key={tick} />
+
+      <div
+        ref={containerRef}
+        style={{
+          position: 'absolute', inset: 0,
+          // leave room for HUD at top
+          top: 48,
+          right: state.inBattle ? 220 : 0,
+        }}
+      >
+        <canvas
+          ref={canvasRef}
+          onClick={handleCanvasClick}
+          style={{ display: 'block', imageRendering: 'pixelated', cursor: 'crosshair' }}
         />
-        <div className={styles.intro}>
-          <h1>To get started, edit the page.tsx file.</h1>
-          <p>
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+      </div>
+
+      <CombatPanel
+        state={state}
+        onSkill={doSkill}
+        onFlee={doFleeFn}
+        key={'cp-' + tick}
+      />
+
+      {/* D-pad for mobile */}
+      {isMobile && (
+        <div style={{
+          position: 'absolute', bottom: 20, left: 20, zIndex: 15,
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, 48px)',
+          gridTemplateRows: 'repeat(3, 48px)',
+          gap: 3,
+        }}>
+          {[
+            [null,    'up',    null],
+            ['left',  null,    'right'],
+            [null,    'down',  null],
+          ].map((row, ri) =>
+            row.map((dir, ci) =>
+              dir ? (
+                <button
+                  key={dir}
+                  onTouchStart={() => dpadPress(dir)}
+                  onTouchEnd={() => dpadRelease(dir)}
+                  style={{
+                    background: 'rgba(255,255,255,0.08)',
+                    border: '1px solid rgba(255,255,255,0.14)',
+                    borderRadius: 8, color: '#888', fontSize: '1.1rem',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    cursor: 'pointer', userSelect: 'none',
+                  }}
+                >
+                  {dir === 'up' ? '▲' : dir === 'down' ? '▼' : dir === 'left' ? '◀' : '▶'}
+                </button>
+              ) : (
+                <div key={`${ri}-${ci}`} />
+              )
+            )
+          )}
         </div>
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className={styles.secondary}
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+      )}
+
+      {/* Controls hint */}
+      {!state.inBattle && (
+        <div style={{
+          position: 'absolute', bottom: 10, right: state.inBattle ? 228 : 10,
+          color: '#252530', fontSize: '0.62rem', letterSpacing: 1,
+          lineHeight: 1.8, fontFamily: "'Courier New', monospace",
+          pointerEvents: 'none',
+        }}>
+          WASD / ↑↓←→ mover<br />
+          ESPAÇO / 1-4 habilidades<br />
+          Clique no inimigo para atacar
         </div>
-      </main>
+      )}
     </div>
   );
 }
